@@ -1,0 +1,199 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// --- Constantes ---
+#define TAILLE_MAX_LIGNE 256       // Taille maximale d'une ligne dans le fichier CSV
+#define CHUNK_TAILLE 100           // Taille du bloc pour redimensionnement dynamique
+
+// --- Structures ---
+typedef struct {
+    char id[20];                   // Identifiant de la station
+    char type[10];                 // Type de la station (HVB, HVA, LV)
+    char typeConsommateur[10];     // Type de consommateur (comp, indiv, all)
+    long capacite;                 // Capacité en kWh
+    long consommation;             // Consommation totale en kWh
+} Station;
+
+// --- Variables globales ---
+Station *stations = NULL;          // Tableau dynamique pour stocker les stations
+int nbStations = 0;                // Nombre de stations lues
+
+// --- Fonctions utilitaires ---
+/**
+ * Fonction pour afficher un message d'erreur et quitter le programme.
+ * @param message : Message d'erreur à afficher.
+ */
+void afficherErreur(const char *message) {
+    fprintf(stderr, "Erreur : %s\n", message);
+    exit(EXIT_FAILURE);
+}
+
+/**
+ * Fonction pour vider le buffer d'entrée en cas d'erreur utilisateur.
+ */
+void viderBuffer() {
+    while (getchar() != '\n');
+}
+
+/**
+ * Fonction pour afficher une ligne de séparation dans les affichages.
+ */
+void afficherSeparation() {
+    printf("---------------------------------------------------------------------------------\n");
+}
+
+// --- Fonctions principales ---
+/**
+ * Fonction pour lire les données d'un fichier CSV avec gestion des fichiers volumineux.
+ * @param nomFichier : Nom du fichier CSV à lire.
+ */
+void lireCSV(const char *nomFichier) {
+    FILE *fichier = fopen(nomFichier, "r");
+    if (!fichier) {
+        perror("Erreur lors de l'ouverture du fichier CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    char ligne[TAILLE_MAX_LIGNE];
+    int estEntete = 1;
+
+    // Allocation initiale du tableau
+    stations = malloc(CHUNK_TAILLE * sizeof(Station));
+    if (!stations) {
+        afficherErreur("Mémoire insuffisante pour le tableau des stations.");
+    }
+
+    nbStations = 0;
+    printf("\nLecture des données depuis le fichier : %s\n", nomFichier);
+    while (fgets(ligne, sizeof(ligne), fichier)) {
+        if (estEntete) {
+            estEntete = 0; // Ignorer l'en-tête
+            continue;
+        }
+
+        Station station;
+        if (sscanf(ligne, "%[^;];%[^;];%[^;];%ld;%ld",
+                   station.id, station.type, station.typeConsommateur,
+                   &station.capacite, &station.consommation) == 5) {
+            // Redimensionnement dynamique si nécessaire
+            if (nbStations % CHUNK_TAILLE == 0) {
+                stations = realloc(stations, (nbStations + CHUNK_TAILLE) * sizeof(Station));
+                if (!stations) {
+                    afficherErreur("Mémoire insuffisante lors du redimensionnement.");
+                }
+            }
+            stations[nbStations++] = station;
+        } else {
+            fprintf(stderr, "Erreur : Ligne mal formatée dans le fichier CSV : %s", ligne);
+        }
+    }
+
+    fclose(fichier);
+
+    if (nbStations == 0) {
+        afficherErreur("Aucune donnée valide trouvée dans le fichier CSV.");
+    }
+    printf("Nombre de stations lues : %d\n", nbStations);
+}
+
+/**
+ * Fonction pour afficher les données sous forme de tableau formaté.
+ */
+void afficherTableau() {
+    if (nbStations == 0) {
+        afficherErreur("Aucune donnée chargée. Veuillez charger un fichier CSV avant de continuer.");
+    }
+
+    printf("\n--- Tableau des stations ---\n");
+    printf("%-15s | %-10s | %-15s | %-10s | %-15s\n", "Station", "Type", "Consommateur", "Capacité", "Consommation");
+    afficherSeparation();
+    for (int i = 0; i < nbStations; i++) {
+        printf("%-15s | %-10s | %-15s | %-10ld | %-15ld\n",
+               stations[i].id, stations[i].type, stations[i].typeConsommateur,
+               stations[i].capacite, stations[i].consommation);
+    }
+}
+
+/**
+ * Fonction pour rechercher une station par son identifiant.
+ */
+void rechercherStation() {
+    if (nbStations == 0) {
+        afficherErreur("Aucune donnée chargée. Veuillez charger un fichier CSV avant de continuer.");
+    }
+
+    char idRecherche[20];
+    printf("Entrez l'identifiant de la station à rechercher : ");
+    scanf("%s", idRecherche);
+
+    int trouve = 0;
+    for (int i = 0; i < nbStations; i++) {
+        if (strcmp(stations[i].id, idRecherche) == 0) {
+            printf("Station trouvée :\n");
+            printf("ID : %s, Type : %s, Consommateur : %s, Capacité : %ld, Consommation : %ld\n",
+                   stations[i].id, stations[i].type, stations[i].typeConsommateur,
+                   stations[i].capacite, stations[i].consommation);
+            trouve = 1;
+            break;
+        }
+    }
+
+    if (!trouve) {
+        printf("Aucune station trouvée avec l'identifiant %s.\n", idRecherche);
+    }
+}
+
+/**
+ * Fonction pour valider les entrées utilisateur dans le menu.
+ * @param choix : Pointeur vers l'entier à valider.
+ */
+void validerChoixUtilisateur(int *choix) {
+    if (scanf("%d", choix) != 1) {
+        printf("Entrée invalide. Veuillez entrer un nombre.\n");
+        viderBuffer();
+        *choix = -1; // Force un choix invalide
+    }
+}
+
+/**
+ * Fonction principale avec boucle interactive.
+ */
+int main() {
+    int choix;
+    do {
+        printf("\n--- MENU INTERACTIF ---\n");
+        printf("1. Charger un fichier CSV\n");
+        printf("2. Afficher les stations (tableau formaté)\n");
+        printf("3. Rechercher une station par identifiant\n");
+        printf("4. Quitter\n");
+        printf("Choisissez une option : ");
+
+        validerChoixUtilisateur(&choix);
+
+        switch (choix) {
+        case 1: {
+            char nomFichier[256];
+            printf("Entrez le nom du fichier CSV : ");
+            scanf("%s", nomFichier);
+            lireCSV(nomFichier);
+            break;
+        }
+        case 2:
+            afficherTableau();
+            break;
+        case 3:
+            rechercherStation();
+            break;
+        case 4:
+            printf("Merci d'avoir utilisé le programme.\n");
+            break;
+        default:
+            printf("Option invalide. Veuillez réessayer.\n");
+        }
+    } while (choix != 4);
+
+    // Libérer la mémoire
+    free(stations);
+    return 0;
+}
