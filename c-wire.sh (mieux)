@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Vérifier les arguments
+if [ "$#" -ne 2 ]; then
+    echo "Utilisation : $0 <fichier_csv> <fichier_sortie>"
+    exit 1
+fi
+
+# Variables
+input_file="$1"
+output_file="$2"
+program_name="./c-wire"
+
+# Compilation
+echo "Compilation du programme C..."
+gcc -o c-wire c-wire.c
+
+# Vérification si la compilation a réussi
+if [ $? -ne 0 ]; then
+    echo "Erreur lors de la compilation. Vérifiez votre fichier C."
+    exit 1
+fi
+
+# Exécution
+echo "Exécution du programme avec les données CSV..."
+$program_name "$input_file" "$output_file"
+
+# Vérification si l'exécution a réussi
+if [ $? -ne 0 ]; then
+    echo "Erreur lors de l'exécution du programme."
+    exit 1
+fi
+
+echo "Résultats exportés dans $output_file"
