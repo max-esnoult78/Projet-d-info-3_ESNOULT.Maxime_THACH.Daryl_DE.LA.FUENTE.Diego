@@ -6,7 +6,7 @@ STATION_TYPE=""
 CLIENT_TYPE=""
 CENTRALE_ID=""
 OUTPUT_FILE=""
-EXECUTABLE="./codeC/c-wire"
+EXECUTABLE="./c-wire"
 TMP_DIR="./tmp"
 GRAPHS_DIR="./graphs"
 
@@ -61,19 +61,21 @@ function verifier_arguments() {
 }
 
 function preparer_dossiers() {
-    mkdir -p "$TMP_DIR" "$GRAPHS_DIR"
+    mkdir -p "$TMP_DIR" "$GRAPHS_DIR" "./tests"
     rm -rf "$TMP_DIR/*"
 }
 
 function compiler_programme() {
     echo "Compilation du programme C..."
-    pushd ./codeC > /dev/null
-    gcc -o c-wire c-wire3.c
-    if [[ $? -ne 0 ]]; then
-        echo "Erreur lors de la compilation du programme C."
-        exit 1
+    if [[ ! -f "$EXECUTABLE" ]]; then
+        gcc -o c-wire c-wire3.c
+        if [[ $? -ne 0 ]]; then
+            echo "Erreur lors de la compilation du programme C."
+            exit 1
+        fi
+    else
+        echo "Programme C déjà compilé."
     fi
-    popd > /dev/null
 }
 
 function executer_programme() {
@@ -126,3 +128,4 @@ compiler_programme
 
 # Exécuter le programme C
 executer_programme
+
