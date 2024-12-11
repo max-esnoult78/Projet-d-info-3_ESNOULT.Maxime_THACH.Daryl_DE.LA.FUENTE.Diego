@@ -69,8 +69,6 @@ AVLNode *rotateLeft(AVLNode *x) {
 
 AVLNode *insertNode(AVLNode *node, Station station) {
     if (!node) {
-        printf("Insertion de la station : %s (Capacité : %ld, Consommation : %ld)\n",
-               station.id, station.capacity, station.consumption);
         return createNode(station);
     }
 
@@ -82,28 +80,26 @@ AVLNode *insertNode(AVLNode *node, Station station) {
         // Mise à jour des données si la station existe déjà
         node->station.capacity += station.capacity;
         node->station.consumption += station.consumption;
-        printf("Mise à jour de la station existante : %s (Nouvelle Capacité : %ld, Nouvelle Consommation : %ld)\n",
-               station.id, node->station.capacity, node->station.consumption);
         return node;
     }
 
     node->height = 1 + max(height(node->left), height(node->right));
     int balance = height(node->left) - height(node->right);
 
-    if (balance > 1 && strcmp(station.id, node->left->station.id) < 0) {
+    if (balance > 1 && strcmp(station.id, node->station.id) < 0) {
         return rotateRight(node);
     }
 
-    if (balance < -1 && strcmp(station.id, node->right->station.id) > 0) {
+    if (balance < -1 && strcmp(station.id, node->station.id) > 0) {
         return rotateLeft(node);
     }
 
-    if (balance > 1 && strcmp(station.id, node->left->station.id) > 0) {
+    if (balance > 1 && strcmp(station.id, node->station.id) > 0) {
         node->left = rotateLeft(node->left);
         return rotateRight(node);
     }
 
-    if (balance < -1 && strcmp(station.id, node->right->station.id) < 0) {
+    if (balance < -1 && strcmp(station.id, node->station.id) < 0) {
         node->right = rotateRight(node->right);
         return rotateLeft(node);
     }
@@ -121,20 +117,24 @@ AVLNode *parseCSV(const char *filename) {
 
     AVLNode *root = NULL;
     char line[MAX_LINE];
-    printf("Lecture du fichier : %s\n", filename);
 
     // Ignorer la première ligne (en-tête)
     fgets(line, sizeof(line), file);
 
     while (fgets(line, sizeof(line), file)) {
         Station station = {0};
-        sscanf(line, "%[^:]:%[^:]:%ld:%ld", station.id, station.parentId, &station.capacity, &station.consumption);
+        char capacityStr[20], loadStr[20];
+
+        sscanf(line, "%[^;];%[^;];%[^;];%[^;];%[^;];%[^;];%[^;];%[^\n]",
+               station.id, station.parentId, station.parentId, station.parentId,
+               station.parentId, station.parentId, capacityStr, loadStr);
+
+        station.capacity = (*capacityStr != '-') ? atol(capacityStr) : 0;
+        station.consumption = (*loadStr != '-') ? atol(loadStr) : 0;
 
         // Vérification des données avant insertion
-        if (strlen(station.id) > 0 && station.capacity >= 0) {
+        if (strlen(station.id) > 0 && (station.capacity > 0 || station.consumption > 0)) {
             root = insertNode(root, station);
-        } else {
-            printf("Ligne ignorée (données invalides) : %s", line);
         }
     }
 
@@ -143,18 +143,25 @@ AVLNode *parseCSV(const char *filename) {
 }
 
 // --- Filtrage et écriture des données ---
-void filterAndSum(AVLNode *node, FILE *output, const char *type) {
+void filterAndSum(AVLNode *node, FILE *output, const char *type, const char *clientType) {
     if (!node) return;
 
-    filterAndSum(node->left, output, type);
+    filterAndSum(node->left, output, type, clientType);
 
-    if (strstr(node->station.id, type)) {
+    // Conditions pour filtrer selon le type et le client
+    int isHV_A = strcmp(type, "hva") == 0 && strlen(node->station.parentId) > 0;
+    int isHV_B = strcmp(type, "hvb") == 0 && strlen(node->station.parentId) == 0;
+    int isLV = strcmp(type, "lv") == 0;
+
+    int isComp = strcmp(clientType, "comp") == 0;
+    int isIndiv = strcmp(clientType, "indiv") == 0;
+    int isAll = strcmp(clientType, "all") == 0;
+
+    if ((isHV_A || isHV_B || isLV) && (isAll || (isComp && node->station.consumption > 0) || (isIndiv && node->station.capacity > 0))) {
         fprintf(output, "%s:%ld:%ld\n", node->station.id, node->station.capacity, node->station.consumption);
-        printf("Écriture dans le fichier : %s (Capacité : %ld, Consommation : %ld)\n",
-               node->station.id, node->station.capacity, node->station.consumption);
     }
 
-    filterAndSum(node->right, output, type);
+    filterAndSum(node->right, output, type, clientType);
 }
 
 // --- Fonction principale ---
@@ -166,6 +173,7 @@ int main(int argc, char *argv[]) {
 
     const char *inputFile = argv[1];
     const char *stationType = argv[2];
+    const char *clientType = argv[3];
     const char *outputFile = argv[4];
 
     AVLNode *root = parseCSV(inputFile);
@@ -177,7 +185,7 @@ int main(int argc, char *argv[]) {
     }
 
     fprintf(output, "ID:Capacity:Consumption\n");
-    filterAndSum(root, output, stationType);
+    filterAndSum(root, output, stationType, clientType);
 
     fclose(output);
     printf("Fichier généré : %s\n", outputFile);
