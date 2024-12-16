@@ -9,6 +9,7 @@ OUTPUT_FILE=""
 EXECUTABLE="./c-wire"
 TMP_DIR="./tmp"
 GRAPHS_DIR="./graphs"
+TESTS_DIR="./tests"
 
 # --- Fonctions ---
 afficher_aide() {
@@ -51,7 +52,7 @@ verifier_arguments() {
 }
 
 preparer_dossiers() {
-    mkdir -p "$TMP_DIR" "$GRAPHS_DIR" "./tests"
+    mkdir -p "$TMP_DIR" "$GRAPHS_DIR" "$TESTS_DIR"
     rm -rf "$TMP_DIR"/*
     echo "Dossiers préparés."
 }
@@ -82,9 +83,11 @@ executer_programme() {
     echo "  Type de client : $CLIENT_TYPE"
     [[ -n "$CENTRALE_ID" ]] && echo "  ID Centrale : $CENTRALE_ID"
 
-    OUTPUT_FILE="./tests/${STATION_TYPE}_${CLIENT_TYPE}.csv"
-    [[ -n "$CENTRALE_ID" ]] && OUTPUT_FILE="${OUTPUT_FILE}_${CENTRALE_ID}.csv"
+    # Définir le fichier de sortie
+    OUTPUT_FILE="${TESTS_DIR}/${STATION_TYPE}_${CLIENT_TYPE}.csv"
+    [[ -n "$CENTRALE_ID" ]] && OUTPUT_FILE="${TESTS_DIR}/${STATION_TYPE}_${CLIENT_TYPE}_${CENTRALE_ID}.csv"
 
+    # Appeler le programme C
     ./c-wire "$INPUT_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$OUTPUT_FILE" "$CENTRALE_ID"
     if [[ $? -ne 0 ]]; then
         echo "Erreur : Le programme C a rencontré un problème."
