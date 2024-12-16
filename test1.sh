@@ -1,64 +1,62 @@
 #!/bin/bash
 
-INPUT_FILE=""
-STATION_TYPE=""
-CLIENT_TYPE=""
-OUTPUT_FILE=""
+# --- Variables ---
 EXECUTABLE="./c-wire"
+OUTPUT_DIR="./results"
 
+# --- Affichage de l'aide ---
 function afficher_aide() {
-    echo "Usage: $0 <csv_file> <station_type> <client_type> [centrale_id]"
+    echo "Usage: $0 <csv_file> <station_type> <client_type> <output_file>"
     echo "  - csv_file: Path to the input CSV file."
     echo "  - station_type: hvb, hva, lv."
     echo "  - client_type: comp, indiv, all."
-    echo "  - centrale_id: Optional, filter by centrale ID."
+    echo "  - output_file: Path to the output file."
     exit 0
 }
 
+# --- Vérification des arguments ---
 function verifier_arguments() {
-    if [[ "$#" -lt 3 ]]; then
+    if [[ $# -lt 4 ]]; then
         afficher_aide
     fi
 
-    INPUT_FILE="$1"
+    CSV_FILE="$1"
     STATION_TYPE="$2"
     CLIENT_TYPE="$3"
+    OUTPUT_FILE="$4"
 
-    if [[ "$STATION_TYPE" != "hvb" && "$STATION_TYPE" != "hva" && "$STATION_TYPE" != "lv" ]]; then
-        echo "Error: Invalid station type. Options: hvb, hva, lv."
+    if [[ ! -f "$CSV_FILE" ]]; then
+        echo "Error: Input CSV file not found."
         exit 1
     fi
 
-    if [[ "$CLIENT_TYPE" != "comp" && "$CLIENT_TYPE" != "indiv" && "$CLIENT_TYPE" != "all" ]]; then
-        echo "Error: Invalid client type. Options: comp, indiv, all."
-        exit 1
-    fi
-
-    OUTPUT_FILE="./results/${STATION_TYPE}_${CLIENT_TYPE}.csv"
+    mkdir -p "$OUTPUT_DIR"
 }
 
+# --- Compilation ---
 function compiler_programme() {
     if [[ ! -f "$EXECUTABLE" ]]; then
         echo "Compiling C program..."
         gcc -o c-wire c-wire.c
         if [[ $? -ne 0 ]]; then
-            echo "Compilation failed."
+            echo "Error: Compilation failed."
             exit 1
         fi
     fi
 }
 
+# --- Exécution ---
 function executer_programme() {
-    echo "Running C program..."
-    ./c-wire "$INPUT_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$OUTPUT_FILE"
+    echo "Running the C program..."
+    $EXECUTABLE "$CSV_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$OUTPUT_FILE"
     if [[ $? -ne 0 ]]; then
-        echo "Error during execution."
+        echo "Error: Program execution failed."
         exit 1
     fi
-    echo "Output written to $OUTPUT_FILE"
+    echo "Output generated in $OUTPUT_FILE"
 }
 
-# Main Script
+# --- Script principal ---
 if [[ "$1" == "-h" ]]; then
     afficher_aide
 fi
