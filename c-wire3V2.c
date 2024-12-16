@@ -3,12 +3,10 @@
 #include <string.h>
 
 #define MAX_LINE 256
-#define TOP_N 10
 
 // --- Définition des structures ---
 typedef struct {
     char id[20];           // Identifiant de la station
-    char parentId[20];     // Identifiant de la station parente
     long capacity;         // Capacité de la station (kWh)
     long consumption;      // Consommation totale (kWh)
 } Station;
@@ -107,32 +105,6 @@ AVLNode *insertNode(AVLNode *node, Station station) {
     return node;
 }
 
-// --- Nouvelle fonction pour libérer l'arbre AVL ---
-void freeAVL(AVLNode *node) {
-    if (node) {
-        freeAVL(node->left);
-        freeAVL(node->right);
-        free(node);
-    }
-}
-
-// --- Validation des entrées ---
-int validateStationType(const char *stationType) {
-    return strcmp(stationType, "hvb") == 0 || strcmp(stationType, "hva") == 0 || strcmp(stationType, "lv") == 0;
-}
-
-int validateClientType(const char *clientType, const char *stationType) {
-    if (strcmp(clientType, "comp") == 0 || strcmp(clientType, "indiv") == 0 || strcmp(clientType, "all") == 0) {
-        // Vérification des restrictions spécifiques
-        if ((strcmp(stationType, "hvb") == 0 || strcmp(stationType, "hva") == 0) &&
-            (strcmp(clientType, "indiv") == 0 || strcmp(clientType, "all") == 0)) {
-            return 0; // Non valide pour HVB/HVA
-        }
-        return 1; // Valide
-    }
-    return 0; // Type de client invalide
-}
-
 // --- Lecture du fichier CSV ---
 AVLNode *parseCSV(const char *filename) {
     FILE *file = fopen(filename, "r");
@@ -149,17 +121,15 @@ AVLNode *parseCSV(const char *filename) {
 
     while (fgets(line, sizeof(line), file)) {
         Station station = {0};
-        char capacityStr[20], loadStr[20];
+        char capacityStr[20], consumptionStr[20];
 
-        sscanf(line, "%[^;];%[^;];%[^;];%[^;];%[^;];%[^;];%[^;];%[^\n]",
-               station.id, station.parentId, station.parentId, station.parentId,
-               station.parentId, station.parentId, capacityStr, loadStr);
+        sscanf(line, "%[^;];%*[^;];%*[^;];%*[^;];%*[^;];%*[^;];%[^;];%s",
+               station.id, capacityStr, consumptionStr);
 
         station.capacity = (*capacityStr != '-') ? atol(capacityStr) : 0;
-        station.consumption = (*loadStr != '-') ? atol(loadStr) : 0;
+        station.consumption = (*consumptionStr != '-') ? atol(consumptionStr) : 0;
 
-        // Vérification des données avant insertion
-        if (strlen(station.id) > 0 && (station.capacity > 0 || station.consumption > 0)) {
+        if (strlen(station.id) > 0 && station.consumption > 0) {
             root = insertNode(root, station);
         }
     }
@@ -174,15 +144,10 @@ void filterAndSum(AVLNode *node, FILE *output, const char *type, const char *cli
 
     filterAndSum(node->left, output, type, clientType);
 
-    int isHV_A = strcmp(type, "hva") == 0 && strlen(node->station.parentId) > 0;
-    int isHV_B = strcmp(type, "hvb") == 0 && strlen(node->station.parentId) == 0;
-    int isLV = strcmp(type, "lv") == 0;
-
+    int isHV_B = strcmp(type, "hvb") == 0;  // Assouplissement de la condition HV-B
     int isComp = strcmp(clientType, "comp") == 0;
-    int isIndiv = strcmp(clientType, "indiv") == 0;
-    int isAll = strcmp(clientType, "all") == 0;
 
-    if ((isHV_A || isHV_B || isLV) && (isAll || (isComp && node->station.consumption > 0) || (isIndiv && node->station.capacity > 0))) {
+    if (isHV_B && isComp) {
         fprintf(output, "%s:%ld:%ld\n", node->station.id, node->station.capacity, node->station.consumption);
     }
 
@@ -201,22 +166,11 @@ int main(int argc, char *argv[]) {
     const char *clientType = argv[3];
     const char *outputFile = argv[4];
 
-    if (!validateStationType(stationType)) {
-        fprintf(stderr, "Erreur : Type de station invalide. Options valides : hvb, hva, lv.\n");
-        return EXIT_FAILURE;
-    }
-
-    if (!validateClientType(clientType, stationType)) {
-        fprintf(stderr, "Erreur : Type de client invalide pour ce type de station. Vérifiez les restrictions.\n");
-        return EXIT_FAILURE;
-    }
-
     AVLNode *root = parseCSV(inputFile);
 
     FILE *output = fopen(outputFile, "w");
     if (!output) {
         perror("Erreur d'ouverture du fichier de sortie");
-        freeAVL(root);  // Libérer l'arbre en cas d'erreur
         return EXIT_FAILURE;
     }
 
@@ -224,7 +178,6 @@ int main(int argc, char *argv[]) {
     filterAndSum(root, output, stationType, clientType);
 
     fclose(output);
-    freeAVL(root);  // Libérer l'arbre après utilisation
     printf("Fichier généré : %s\n", outputFile);
 
     return EXIT_SUCCESS;
