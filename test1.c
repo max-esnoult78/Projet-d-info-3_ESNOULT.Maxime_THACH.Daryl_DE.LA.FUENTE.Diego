@@ -29,7 +29,7 @@ int max(int a, int b) {
 AVLNode *createNode(Station station) {
     AVLNode *node = (AVLNode *)malloc(sizeof(AVLNode));
     if (!node) {
-        perror("Memory allocation error");
+        perror("Erreur d'allocation mémoire");
         exit(EXIT_FAILURE);
     }
     node->station = station;
@@ -118,31 +118,29 @@ void freeTree(AVLNode *root) {
     free(root);
 }
 
-// --- Lecture CSV ---
-AVLNode *parseCSV(const char *filename) {
+// --- Lecture du fichier ---
+AVLNode *parseDataFile(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
-        perror("Error opening CSV file");
+        perror("Erreur d'ouverture du fichier");
         exit(EXIT_FAILURE);
     }
 
     AVLNode *root = NULL;
     char line[256];
 
-    fgets(line, sizeof(line), file); // Skip header
-
     while (fgets(line, sizeof(line), file)) {
         Station station = {0};
         char capacityStr[20], loadStr[20];
 
-        sscanf(line, "%[^;];%[^;];%[^;];%[^;];%[^;];%[^;];%[^;];%[^\n]",
-               station.id, station.parentId, station.parentId, station.parentId,
-               station.parentId, station.parentId, capacityStr, loadStr);
+        // Adapter le parsing en fonction du format
+        sscanf(line, "%[^;];%[^;];%[^;];%[^\n]",
+               station.id, station.parentId, capacityStr, loadStr);
 
         station.capacity = (*capacityStr != '-') ? atol(capacityStr) : 0;
         station.consumption = (*loadStr != '-') ? atol(loadStr) : 0;
 
-        if (strlen(station.id) > 0 && (station.capacity > 0 || station.consumption > 0)) {
+        if (strlen(station.id) > 0) {
             root = insertNode(root, station);
         }
     }
@@ -154,20 +152,18 @@ AVLNode *parseCSV(const char *filename) {
 // --- Main ---
 int main(int argc, char *argv[]) {
     if (argc < 5) {
-        fprintf(stderr, "Usage: %s <csv_file> <station_type> <client_type> <output_file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <data_file> <station_type> <client_type> <output_file>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     const char *inputFile = argv[1];
-    const char *stationType = argv[2];
-    const char *clientType = argv[3];
     const char *outputFile = argv[4];
 
-    AVLNode *root = parseCSV(inputFile);
+    AVLNode *root = parseDataFile(inputFile);
 
     FILE *output = fopen(outputFile, "w");
     if (!output) {
-        perror("Error opening output file");
+        perror("Erreur d'ouverture du fichier de sortie");
         return EXIT_FAILURE;
     }
 
@@ -176,7 +172,7 @@ int main(int argc, char *argv[]) {
 
     fclose(output);
     freeTree(root);
-    printf("Output generated: %s\n", outputFile);
+    printf("Fichier généré : %s\n", outputFile);
 
     return EXIT_SUCCESS;
 }
