@@ -7,6 +7,7 @@
 // --- Définition des structures ---
 typedef struct {
     char id[20];           // Identifiant de la station
+    char parentId[20];     // Identifiant de la station parente
     long capacity;         // Capacité de la station (kWh)
     long consumption;      // Consommation totale (kWh)
 } Station;
@@ -121,15 +122,17 @@ AVLNode *parseCSV(const char *filename) {
 
     while (fgets(line, sizeof(line), file)) {
         Station station = {0};
-        char capacityStr[20], consumptionStr[20];
+        char capacityStr[20], loadStr[20];
 
-        sscanf(line, "%[^;];%*[^;];%*[^;];%*[^;];%*[^;];%*[^;];%[^;];%s",
-               station.id, capacityStr, consumptionStr);
+        // Lire chaque champ séparé par ;
+        sscanf(line, "%[^;];%[^;];%*[^;];%*[^;];%*[^;];%*[^;];%[^;];%[^\n]",
+               station.id, station.parentId, capacityStr, loadStr);
 
         station.capacity = (*capacityStr != '-') ? atol(capacityStr) : 0;
-        station.consumption = (*consumptionStr != '-') ? atol(consumptionStr) : 0;
+        station.consumption = (*loadStr != '-') ? atol(loadStr) : 0;
 
-        if (strlen(station.id) > 0 && station.consumption > 0) {
+        // Vérification des données avant insertion
+        if (strlen(station.id) > 0 && (station.capacity > 0 || station.consumption > 0)) {
             root = insertNode(root, station);
         }
     }
@@ -144,7 +147,11 @@ void filterAndSum(AVLNode *node, FILE *output, const char *type, const char *cli
 
     filterAndSum(node->left, output, type, clientType);
 
-    int isHV_B = strcmp(type, "hvb") == 0;  // Assouplissement de la condition HV-B
+    // Conditions pour filtrer selon le type et le client
+    int isHV_B = strcmp(type, "hvb") == 0;
+    int isHV_A = strcmp(type, "hva") == 0;
+    int isLV = strcmp(type, "lv") == 0;
+
     int isComp = strcmp(clientType, "comp") == 0;
 
     if (isHV_B && isComp) {
@@ -152,6 +159,15 @@ void filterAndSum(AVLNode *node, FILE *output, const char *type, const char *cli
     }
 
     filterAndSum(node->right, output, type, clientType);
+}
+
+// --- Libération de la mémoire ---
+void freeAVL(AVLNode *node) {
+    if (node) {
+        freeAVL(node->left);
+        freeAVL(node->right);
+        free(node);
+    }
 }
 
 // --- Fonction principale ---
@@ -171,6 +187,7 @@ int main(int argc, char *argv[]) {
     FILE *output = fopen(outputFile, "w");
     if (!output) {
         perror("Erreur d'ouverture du fichier de sortie");
+        freeAVL(root);
         return EXIT_FAILURE;
     }
 
@@ -178,6 +195,7 @@ int main(int argc, char *argv[]) {
     filterAndSum(root, output, stationType, clientType);
 
     fclose(output);
+    freeAVL(root);
     printf("Fichier généré : %s\n", outputFile);
 
     return EXIT_SUCCESS;
