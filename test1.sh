@@ -1,66 +1,65 @@
 #!/bin/bash
 
-# --- Variables ---
 EXECUTABLE="./c-wire"
-OUTPUT_DIR="./results"
+RESULTS_DIR="./results"
 
-# --- Affichage de l'aide ---
 function afficher_aide() {
-    echo "Usage: $0 <csv_file> <station_type> <client_type> <output_file>"
-    echo "  - csv_file: Path to the input CSV file."
-    echo "  - station_type: hvb, hva, lv."
-    echo "  - client_type: comp, indiv, all."
-    echo "  - output_file: Path to the output file."
+    echo "Usage: $0 <data_file> <station_type> <client_type> <output_file>"
+    echo "  - data_file: Path to the input data file (e.g., c-wire_v00.dat)."
+    echo "  - station_type: Type of station (e.g., hvb, hva, lv)."
+    echo "  - client_type: Type of client (e.g., comp, indiv, all)."
+    echo "  - output_file: Name of the output file."
     exit 0
 }
 
-# --- Vérification des arguments ---
 function verifier_arguments() {
     if [[ $# -lt 4 ]]; then
         afficher_aide
     fi
-
-    CSV_FILE="$1"
-    STATION_TYPE="$2"
-    CLIENT_TYPE="$3"
-    OUTPUT_FILE="$4"
-
-    if [[ ! -f "$CSV_FILE" ]]; then
-        echo "Error: Input CSV file not found."
+    if [[ ! -f "$1" ]]; then
+        echo "Erreur : Le fichier $1 est introuvable."
         exit 1
     fi
-
-    mkdir -p "$OUTPUT_DIR"
 }
 
-# --- Compilation ---
 function compiler_programme() {
     if [[ ! -f "$EXECUTABLE" ]]; then
-        echo "Compiling C program..."
+        echo "Compilation du programme C..."
         gcc -o c-wire c-wire.c
         if [[ $? -ne 0 ]]; then
-            echo "Error: Compilation failed."
+            echo "Erreur lors de la compilation du programme C."
             exit 1
         fi
     fi
 }
 
-# --- Exécution ---
 function executer_programme() {
-    echo "Running the C program..."
-    $EXECUTABLE "$CSV_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$OUTPUT_FILE"
+    mkdir -p "$RESULTS_DIR"
+    local INPUT_FILE=$1
+    local STATION_TYPE=$2
+    local CLIENT_TYPE=$3
+    local OUTPUT_FILE=$4
+
+    echo "Exécution du programme avec les paramètres :"
+    echo "  Fichier d'entrée : $INPUT_FILE"
+    echo "  Type de station : $STATION_TYPE"
+    echo "  Type de client : $CLIENT_TYPE"
+    echo "  Fichier de sortie : $RESULTS_DIR/$OUTPUT_FILE"
+
+    ./"$EXECUTABLE" "$INPUT_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$RESULTS_DIR/$OUTPUT_FILE"
     if [[ $? -ne 0 ]]; then
-        echo "Error: Program execution failed."
+        echo "Erreur lors de l'exécution du programme."
         exit 1
     fi
-    echo "Output generated in $OUTPUT_FILE"
+
+    echo "Résultat écrit dans : $RESULTS_DIR/$OUTPUT_FILE"
 }
 
-# --- Script principal ---
+# Main script
 if [[ "$1" == "-h" ]]; then
     afficher_aide
 fi
 
 verifier_arguments "$@"
 compiler_programme
-executer_programme
+executer_programme "$@"
