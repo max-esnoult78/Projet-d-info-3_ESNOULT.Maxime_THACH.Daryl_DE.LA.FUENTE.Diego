@@ -8,11 +8,10 @@ CENTRALE_ID=""
 OUTPUT_FILE=""
 EXECUTABLE="./c-wire"
 TMP_DIR="./tmp"
-GRAPHS_DIR="./graphs"
 TESTS_DIR="./tests"
 
 # --- Fonctions ---
-afficher_aide() {
+function afficher_aide() {
     echo "Utilisation : $0 <fichier_csv> <type_station> <type_client> [id_centrale]"
     echo "  - fichier_csv : chemin du fichier d'entrée."
     echo "  - type_station : hvb, hva, lv."
@@ -23,46 +22,56 @@ afficher_aide() {
     exit 0
 }
 
-verifier_arguments() {
+function verifier_arguments() {
     if [[ "$1" == "-h" ]]; then
         afficher_aide
     fi
 
-    if [[ -z "$INPUT_FILE" || -z "$STATION_TYPE" || -z "$CLIENT_TYPE" ]]; then
-        echo "Erreur : Paramètres manquants. Veuillez les définir via le menu."
-        return 1
+    if [[ "$#" -lt 3 ]]; then
+        echo "Erreur : Nombre d'arguments insuffisant."
+        afficher_aide
     fi
 
+    INPUT_FILE="$1"
+    STATION_TYPE="$2"
+    CLIENT_TYPE="$3"
+    CENTRALE_ID="$4"
+
+    # Validation des types
     if [[ ! -f "$INPUT_FILE" ]]; then
         echo "Erreur : Fichier d'entrée introuvable."
-        return 1
+        exit 1
     fi
 
     if [[ "$STATION_TYPE" != "hvb" && "$STATION_TYPE" != "hva" && "$STATION_TYPE" != "lv" ]]; then
         echo "Erreur : Type de station invalide. Options : hvb, hva, lv."
-        return 1
+        exit 1
     fi
 
     if [[ "$CLIENT_TYPE" != "comp" && "$CLIENT_TYPE" != "indiv" && "$CLIENT_TYPE" != "all" ]]; then
         echo "Erreur : Type de client invalide. Options : comp, indiv, all."
-        return 1
+        exit 1
     fi
 
-    return 0
+    # Restrictions pour HVB et HVA
+    if [[ ("$STATION_TYPE" == "hvb" || "$STATION_TYPE" == "hva") && "$CLIENT_TYPE" != "comp" ]]; then
+        echo "Erreur : Pour HVB et HVA, seuls les clients 'comp' sont valides."
+        exit 1
+    fi
 }
 
-preparer_dossiers() {
-    mkdir -p "$TMP_DIR" "$GRAPHS_DIR" "$TESTS_DIR"
-    rm -rf "$TMP_DIR"/*
+function preparer_dossiers() {
+    mkdir -p "$TMP_DIR" "$TESTS_DIR/$STATION_TYPE/$CLIENT_TYPE"
+    rm -rf "$TMP_DIR/*"
     echo "Dossiers préparés."
 }
 
-compiler_programme() {
+function compiler_programme() {
     echo "Compilation du programme C..."
     if [[ ! -f "$EXECUTABLE" ]]; then
-        gcc -Wall -Wextra -O2 -o c-wire c-wire.c
+        gcc -Wall -Wextra -O2 -o c-wire c-wire3.c
         if [[ $? -ne 0 ]]; then
-            echo "Erreur : La compilation du programme C a échoué."
+            echo "Erreur : La compilation a échoué."
             exit 1
         fi
     else
@@ -70,75 +79,50 @@ compiler_programme() {
     fi
 }
 
-executer_programme() {
-    verifier_arguments
-    if [[ $? -ne 0 ]]; then
-        echo "Erreur : Vérification des arguments échouée."
-        return 1
-    fi
-
+function executer_programme() {
     echo "Exécution du programme avec les paramètres suivants :"
-    echo "  Fichier : $INPUT_FILE"
+    echo "  Fichier d'entrée : $INPUT_FILE"
     echo "  Type de station : $STATION_TYPE"
     echo "  Type de client : $CLIENT_TYPE"
     [[ -n "$CENTRALE_ID" ]] && echo "  ID Centrale : $CENTRALE_ID"
 
-    # Définir le fichier de sortie
-    OUTPUT_FILE="${TESTS_DIR}/${STATION_TYPE}_${CLIENT_TYPE}.csv"
-    [[ -n "$CENTRALE_ID" ]] && OUTPUT_FILE="${TESTS_DIR}/${STATION_TYPE}_${CLIENT_TYPE}_${CENTRALE_ID}.csv"
+    # Définir le nom de fichier de sortie
+    OUTPUT_FILE="$TESTS_DIR/$STATION_TYPE/$CLIENT_TYPE/output.csv"
 
-    # Appeler le programme C
-    ./c-wire "$INPUT_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$OUTPUT_FILE" "$CENTRALE_ID"
-    if [[ $? -ne 0 ]]; then
-        echo "Erreur : Le programme C a rencontré un problème."
-        return 1
+    # Gérer les doublons : sauvegarder les fichiers existants avec un timestamp
+    if [[ -f "$OUTPUT_FILE" ]]; then
+        mv "$OUTPUT_FILE" "${OUTPUT_FILE%.csv}_$(date +%Y%m%d%H%M%S).csv"
+        echo "Ancien fichier sauvegardé avec timestamp."
     fi
 
-    echo "Traitement terminé. Fichier de sortie : $OUTPUT_FILE"
+    # Exécution du programme C
+    START_TIME=$(date +%s.%N)
+    ./c-wire "$INPUT_FILE" "$STATION_TYPE" "$CLIENT_TYPE" "$OUTPUT_FILE" "$CENTRALE_ID"
+    END_TIME=$(date +%s.%N)
+    DURATION=$(echo "$END_TIME - $START_TIME" | bc)
+
+    if [[ $? -ne 0 ]]; then
+        echo "Erreur : Le programme C a rencontré un problème."
+        exit 1
+    fi
+
+    echo "Traitement terminé en $DURATION secondes."
+    echo "Fichier de sortie : $OUTPUT_FILE"
 }
 
-# --- Menu Principal ---
-while true; do
-    echo "=== Menu Principal ==="
-    echo "1. Sélectionner le fichier CSV"
-    echo "2. Choisir le type de station (hvb, hva, lv)"
-    echo "3. Choisir le type de client (comp, indiv, all)"
-    echo "4. Spécifier un identifiant de centrale (optionnel)"
-    echo "5. Lancer le traitement"
-    echo "6. Quitter"
-    echo "======================="
-    read -p "Choisissez une option : " choix
+# --- Script Principal ---
+if [[ "$#" -lt 3 ]]; then
+    afficher_aide
+fi
 
-    case $choix in
-        1)
-            read -p "Entrez le chemin du fichier CSV : " INPUT_FILE
-            if [[ ! -f "$INPUT_FILE" ]]; then
-                echo "Erreur : Fichier introuvable."
-                INPUT_FILE=""
-            else
-                echo "Fichier sélectionné : $INPUT_FILE"
-            fi
-            ;;
-        2)
-            read -p "Entrez le type de station (hvb, hva, lv) : " STATION_TYPE
-            ;;
-        3)
-            read -p "Entrez le type de client (comp, indiv, all) : " CLIENT_TYPE
-            ;;
-        4)
-            read -p "Entrez l'identifiant de la centrale (laisser vide si non applicable) : " CENTRALE_ID
-            ;;
-        5)
-            preparer_dossiers
-            compiler_programme
-            executer_programme
-            ;;
-        6)
-            echo "Au revoir !"
-            exit 0
-            ;;
-        *)
-            echo "Option invalide, veuillez réessayer."
-            ;;
-    esac
-done
+# Vérification des arguments
+verifier_arguments "$@"
+
+# Préparer les dossiers nécessaires
+preparer_dossiers
+
+# Compiler le programme C si nécessaire
+compiler_programme
+
+# Exécuter le programme C
+executer_programme
