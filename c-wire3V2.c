@@ -124,12 +124,13 @@ AVLNode *parseCSV(const char *filename) {
     return root;
 }
 
+// --- Filtrage et écriture des données ---
 void filterAndWrite(AVLNode *node, FILE *output, const char *type, const char *client) {
     if (!node) return;
 
     filterAndWrite(node->left, output, type, client);
 
-    int isHV_B = strcmp(type, "hvb") == 0 && strlen(node->station.parentId) == 0;
+    int isHV_B = strcmp(type, "hvb") == 0; // Suppression de la contrainte sur ParentID
     int isComp = strcmp(client, "comp") == 0;
 
     if (isHV_B && isComp && node->station.consumption > 0) {
@@ -150,4 +151,14 @@ int main(int argc, char *argv[]) {
 
     FILE *output = fopen(argv[4], "w");
     if (!output) {
-        perror("Erreur d'ouverture
+        perror("Erreur d'ouverture du fichier de sortie");
+        return EXIT_FAILURE;
+    }
+
+    fprintf(output, "ID;Capacity;Consumption\n");
+    filterAndWrite(root, output, argv[2], argv[3]);
+
+    fclose(output);
+    printf("Fichier généré : %s\n", argv[4]);
+    return EXIT_SUCCESS;
+}
