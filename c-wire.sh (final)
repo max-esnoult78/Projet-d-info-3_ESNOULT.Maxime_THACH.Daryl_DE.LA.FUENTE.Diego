@@ -23,7 +23,7 @@ mkdir -p "$OUTPUT_DIR"
 # --- Compilation du programme C ---
 if [[ ! -f "$EXECUTABLE" ]]; then
     echo "Compilation du programme C..."
-    gcc -o c-wire c-wire3.c
+    gcc -o c-wire c-wire.c
     if [[ $? -ne 0 ]]; then
         echo "Erreur : Échec de la compilation."
         exit 1
