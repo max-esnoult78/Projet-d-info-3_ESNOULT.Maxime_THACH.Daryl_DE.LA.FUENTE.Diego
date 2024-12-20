@@ -1,196 +1,224 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-#define MAX_LINE 256
+#define MAX_LIGNE 256
 
 // --- Définition des structures ---
 typedef struct {
     char id[20];           // Identifiant de la station
-    char hvb[20];          // HV-B Station
-    char hva[20];          // HV-A Station
-    char lv[20];           // LV Station
-    char comp[20];         // Entreprise
-    char indiv[20];        // Particulier
-    long capacity;         // Capacité de la station (kWh)
-    long consumption;      // Consommation totale (kWh)
+    char hvb[20];          // Identifiant de la station HV-B
+    char hva[20];          // Identifiant de la station HV-A
+    char lv[20];           // Identifiant de la station LV
+    char entreprise[20];   // Identifiant d'une entreprise (consommateur)
+    char particulier[20];  // Identifiant d'un particulier (consommateur)
+    long capacite;         // Capacité maximale de transfert ou de production (en kWh)
+    long consommation;     // Consommation totale de la station (en kWh)
 } Station;
 
-typedef struct AVLNode {
-    Station station;
-    struct AVLNode *left;
-    struct AVLNode *right;
-    int height;
-} AVLNode;
+typedef struct NoeudAVL {
+    Station station;         // Les données associées au nœud AVL
+    struct NoeudAVL *gauche; // Fils gauche
+    struct NoeudAVL *droite; // Fils droit
+    int hauteur;             // Hauteur du nœud
+} NoeudAVL;
 
 // --- Fonctions AVL ---
-int height(AVLNode *node) {
-    return node ? node->height : 0;
+int hauteur(NoeudAVL *noeud) {
+    // Retourne la hauteur d'un nœud, ou 0 si le nœud est NULL.
+    return noeud ? noeud->hauteur : 0;
 }
 
 int max(int a, int b) {
+    // Retourne le maximum entre deux entiers.
     return (a > b) ? a : b;
 }
 
-AVLNode *createNode(Station station) {
-    AVLNode *node = (AVLNode *)malloc(sizeof(AVLNode));
-    if (!node) {
+NoeudAVL *creerNoeud(Station station) {
+    // Ici, nous créons un nouveau nœud AVL contenant les informations d'une station.
+    NoeudAVL *noeud = (NoeudAVL *)malloc(sizeof(NoeudAVL));
+    if (!noeud) {
         perror("Erreur d'allocation mémoire");
         exit(EXIT_FAILURE);
     }
-    node->station = station;
-    node->left = node->right = NULL;
-    node->height = 1;
-    return node;
+    noeud->station = station;
+    noeud->gauche = noeud->droite = NULL;
+    noeud->hauteur = 1; // Un nouveau nœud a une hauteur de 1.
+    return noeud;
 }
 
-AVLNode *rotateRight(AVLNode *y) {
-    AVLNode *x = y->left;
-    AVLNode *T = x->right;
+NoeudAVL *rotationDroite(NoeudAVL *y) {
+    // Cette fonction effectue une rotation à droite pour équilibrer un nœud déséquilibré.
+    NoeudAVL *x = y->gauche;
+    NoeudAVL *T = x->droite;
 
-    x->right = y;
-    y->left = T;
+    // Effectue la rotation
+    x->droite = y;
+    y->gauche = T;
 
-    y->height = max(height(y->left), height(y->right)) + 1;
-    x->height = max(height(x->left), height(x->right)) + 1;
+    // Met à jour les hauteurs
+    y->hauteur = max(hauteur(y->gauche), hauteur(y->droite)) + 1;
+    x->hauteur = max(hauteur(x->gauche), hauteur(x->droite)) + 1;
 
+    // Retourne le nouveau nœud racine
     return x;
 }
 
-AVLNode *rotateLeft(AVLNode *x) {
-    AVLNode *y = x->right;
-    AVLNode *T = y->left;
+NoeudAVL *rotationGauche(NoeudAVL *x) {
+    // Cette fonction effectue une rotation à gauche pour équilibrer un nœud déséquilibré.
+    NoeudAVL *y = x->droite;
+    NoeudAVL *T = y->gauche;
 
-    y->left = x;
-    x->right = T;
+    // Effectue la rotation
+    y->gauche = x;
+    x->droite = T;
 
-    x->height = max(height(x->left), height(x->right)) + 1;
-    y->height = max(height(y->left), height(y->right)) + 1;
+    // Met à jour les hauteurs
+    x->hauteur = max(hauteur(x->gauche), hauteur(x->droite)) + 1;
+    y->hauteur = max(hauteur(y->gauche), hauteur(y->droite)) + 1;
 
+    // Retourne le nouveau nœud racine
     return y;
 }
 
-AVLNode *insertNode(AVLNode *node, Station station) {
-    if (!node) return createNode(station);
+NoeudAVL *insererNoeud(NoeudAVL *noeud, Station station) {
+    // Cette fonction insère une station dans l'arbre AVL de manière ordonnée.
 
-    // Crée une clé unique basée sur ID + HVB + HVA + LV + COMP + INDIV
-    char nodeKey[100], stationKey[100];
-    snprintf(nodeKey, sizeof(nodeKey), "%19s_%19s_%19s_%19s_%19s_%19s",
-             node->station.id, node->station.hvb, node->station.hva,
-             node->station.lv, node->station.comp, node->station.indiv);
+    if (!noeud) return creerNoeud(station);
 
-    snprintf(stationKey, sizeof(stationKey), "%19s_%19s_%19s_%19s_%19s_%19s",
+    // On génère une clé unique basée sur les champs de la station pour comparer les nœuds
+    char cleNoeud[100], cleStation[100];
+    snprintf(cleNoeud, sizeof(cleNoeud), "%19s_%19s_%19s_%19s_%19s_%19s",
+             noeud->station.id, noeud->station.hvb, noeud->station.hva,
+             noeud->station.lv, noeud->station.entreprise, noeud->station.particulier);
+
+    snprintf(cleStation, sizeof(cleStation), "%19s_%19s_%19s_%19s_%19s_%19s",
              station.id, station.hvb, station.hva,
-             station.lv, station.comp, station.indiv);
+             station.lv, station.entreprise, station.particulier);
 
-    int cmp = strcmp(stationKey, nodeKey);
+    // Compare les clés pour décider où insérer la station
+    int cmp = strcmp(cleStation, cleNoeud);
     if (cmp < 0) {
-        node->left = insertNode(node->left, station);
+        noeud->gauche = insererNoeud(noeud->gauche, station);
     } else if (cmp > 0) {
-        node->right = insertNode(node->right, station);
+        noeud->droite = insererNoeud(noeud->droite, station);
     }
 
-    // Mise à jour de la hauteur et rééquilibrage
-    node->height = 1 + max(height(node->left), height(node->right));
+    // Mise à jour de la hauteur et équilibrage du nœud
+    noeud->hauteur = 1 + max(hauteur(noeud->gauche), hauteur(noeud->droite));
 
-    int balance = height(node->left) - height(node->right);
+    int balance = hauteur(noeud->gauche) - hauteur(noeud->droite);
 
-    if (balance > 1 && cmp < 0) return rotateRight(node);
-    if (balance < -1 && cmp > 0) return rotateLeft(node);
+    // Effectue des rotations en cas de déséquilibre
+    if (balance > 1 && cmp < 0) return rotationDroite(noeud);
+    if (balance < -1 && cmp > 0) return rotationGauche(noeud);
     if (balance > 1 && cmp > 0) {
-        node->left = rotateLeft(node->left);
-        return rotateRight(node);
+        noeud->gauche = rotationGauche(noeud->gauche);
+        return rotationDroite(noeud);
     }
     if (balance < -1 && cmp < 0) {
-        node->right = rotateRight(node->right);
-        return rotateLeft(node);
+        noeud->droite = rotationDroite(noeud->droite);
+        return rotationGauche(noeud);
     }
 
-    return node;
+    return noeud;
 }
 
 // Lecture du fichier CSV
-AVLNode *parseCSV(const char *filename) {
-    FILE *file = fopen(filename, "r");
+NoeudAVL *lireCSV(const char *fichier) {
+    // Cette fonction lit un fichier CSV et construit un arbre AVL à partir des données.
+    FILE *file = fopen(fichier, "r");
     if (!file) {
         perror("Erreur d'ouverture du fichier CSV");
         exit(EXIT_FAILURE);
     }
 
-    AVLNode *root = NULL;
-    char line[MAX_LINE];
+    NoeudAVL *racine = NULL;
+    char ligne[MAX_LIGNE];
 
-    // Ignorer la première ligne (en-tête)
-    fgets(line, sizeof(line), file);
+    fgets(ligne, sizeof(ligne), file); // Ignore l'en-tête
 
-    while (fgets(line, sizeof(line), file)) {
+    while (fgets(ligne, sizeof(ligne), file)) {
         Station station = {0};
-        char capacityStr[20] = "", consumptionStr[20] = "";
+        char capaciteStr[20] = "", consommationStr[20] = "";
 
-        if (sscanf(line, "%19[^;];%19[^;];%19[^;];%19[^;];%19[^;];%19[^;];%19[^;];%19[^\n]",
+        // analyser chaque ligne du fichier CSV pour en extraire les données pertinentes.
+        if (sscanf(ligne, "%19[^;];%19[^;];%19[^;];%19[^;];%19[^;];%19[^;];%19[^;];%19[^\n]",
                    station.id, station.hvb, station.hva, station.lv,
-                   station.comp, station.indiv, capacityStr, consumptionStr) == 8) {
-            station.capacity = (*capacityStr != '-') ? atol(capacityStr) : 0;
-            station.consumption = (*consumptionStr != '-') ? atol(consumptionStr) : 0;
+                   station.entreprise, station.particulier, capaciteStr, consommationStr) == 8) {
+            station.capacite = (*capaciteStr != '-') ? atol(capaciteStr) : 0;
+            station.consommation = (*consommationStr != '-') ? atol(consommationStr) : 0;
 
-            if (station.capacity > 0 || station.consumption > 0) {
-                root = insertNode(root, station);
+            if (station.capacite > 0 || station.consommation > 0) {
+                racine = insererNoeud(racine, station);
             }
         }
     }
 
     fclose(file);
-    return root;
+    return racine;
 }
 
-// Filtrage et écriture des données
-void filterAndWrite(AVLNode *node, FILE *output, const char *type, const char *client) {
-    if (!node) return;
+// Écriture des données filtrées dans un fichier de sortie
+void filtrerEtEcrire(NoeudAVL *noeud, FILE *sortie, const char *type, const char *client) {
+    if (!noeud) return;
 
-    filterAndWrite(node->left, output, type, client);
+    // Traite le sous-arbre gauche
+    filtrerEtEcrire(noeud->gauche, sortie, type, client);
 
-    int matchType = 0, matchClient = 0;
+    // Vérifie si le nœud correspond aux critères
+    int correspondType = 0, correspondClient = 0;
 
-    if (strcmp(type, "hvb") == 0 && strcmp(node->station.hvb, "-") != 0) matchType = 1;
-    if (strcmp(type, "hva") == 0 && strcmp(node->station.hva, "-") != 0) matchType = 1;
-    if (strcmp(type, "lv") == 0 && strcmp(node->station.lv, "-") != 0) matchType = 1;
+    if (strcmp(type, "hvb") == 0 && strcmp(noeud->station.hvb, "-") != 0) correspondType = 1;
+    if (strcmp(type, "hva") == 0 && strcmp(noeud->station.hva, "-") != 0) correspondType = 1;
+    if (strcmp(type, "lv") == 0 && strcmp(noeud->station.lv, "-") != 0) correspondType = 1;
 
-    if ((strcmp(client, "comp") == 0 && node->station.capacity > 0) ||
-        (strcmp(client, "indiv") == 0 && node->station.consumption > 0) ||
-        (strcmp(client, "all") == 0)) matchClient = 1;
+    if ((strcmp(client, "comp") == 0 && noeud->station.capacite > 0) ||
+        (strcmp(client, "indiv") == 0 && noeud->station.consommation > 0) ||
+        (strcmp(client, "all") == 0)) correspondClient = 1;
 
-    if (matchType && matchClient) {
-        fprintf(output, "%s:%ld:%ld\n", node->station.id, node->station.capacity, node->station.consumption);
+    // Écrit dans le fichier si les critères sont remplis
+    if (correspondType && correspondClient) {
+        fprintf(sortie, "%s:%ld:%ld\n", noeud->station.id, noeud->station.capacite, noeud->station.consommation);
     }
 
-    filterAndWrite(node->right, output, type, client);
+    // Traite le sous-arbre droit
+    filtrerEtEcrire(noeud->droite, sortie, type, client);
 }
 
-// --- Fonction principale ---
+// Fonction principale
 int main(int argc, char *argv[]) {
     if (argc < 5) {
         fprintf(stderr, "Utilisation : %s <fichier_csv> <type_station> <type_client> <fichier_sortie>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    const char *inputFile = argv[1];
-    const char *stationType = argv[2];
-    const char *clientType = argv[3];
-    const char *outputFile = argv[4];
+    const char *fichierEntree = argv[1];
+    const char *typeStation = argv[2];
+    const char *typeClient = argv[3];
+    const char *fichierSortie = argv[4];
 
-    AVLNode *root = parseCSV(inputFile);
+    clock_t debut = clock(); // Démarre le chronométrage
 
-    FILE *output = fopen(outputFile, "w");
-    if (!output) {
+    NoeudAVL *racine = lireCSV(fichierEntree);
+
+    FILE *sortie = fopen(fichierSortie, "w");
+    if (!sortie) {
         perror("Erreur d'ouverture du fichier de sortie");
         return EXIT_FAILURE;
     }
 
-    fprintf(output, "ID:Capacity:Consumption\n");
-    filterAndWrite(root, output, stationType, clientType);
+    fprintf(sortie, "ID:Capacité:Consommation\n");
+    filtrerEtEcrire(racine, sortie, typeStation, typeClient);
 
-    fclose(output);
-    printf("Fichier généré : %s\n", outputFile);
+    fclose(sortie);
+
+    clock_t fin = clock(); // Arrête le chronométrage
+    double tempsEcoule = (double)(fin - debut) / CLOCKS_PER_SEC;
+
+    printf("Fichier généré : %s\n", fichierSortie);
+    printf("Temps d'exécution : %.2f secondes\n", tempsEcoule);
 
     return EXIT_SUCCESS;
 }
